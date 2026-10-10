@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- No network access of any kind: no fetch/XHR, no external scripts, styles, fonts or images. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#2f6f4f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Neighbors">
+<title>Neighbors</title>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --card: #ffffff;
+    --text: #1d1f1c;
+    --muted: #6b6f68;
+    --line: #e2e0d9;
+    --accent: #2f6f4f;
+    --accent-ink: #ffffff;
+    --accent-soft: #e3efe8;
+    --warn: #a3402d;
+    --warn-soft: #f7e4df;
+    --radius: 14px;
+    --tabbar-h: 64px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141614;
+      --card: #1e211e;
+      --text: #ecede9;
+      --muted: #9da29a;
+      --line: #313530;
+      --accent: #6cc196;
+      --accent-ink: #0d1f15;
+      --accent-soft: #23362b;
+      --warn: #f08b75;
+      --warn-soft: #3a2420;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 24px);
+  }
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    padding: calc(12px + env(safe-area-inset-top)) 16px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 14px; }
+  main { padding: 12px 16px; max-width: 640px; margin: 0 auto; }
+  .view[hidden] { display: none; }
+
+  input, textarea, select, button { font: inherit; color: inherit; }
+  input[type=text], input[type=search], input[type=date], textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card);
+    font-size: 16px; /* prevents iOS zoom */
+  }
+  textarea { min-height: 64px; resize: vertical; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 12px 0 4px; }
+  label .req { color: var(--warn); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 44px; padding: 10px 16px;
+    border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card); cursor: pointer;
+    font-weight: 600; font-size: 15px;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.danger { color: var(--warn); border-color: var(--warn); }
+  .btn.small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+  .btn.block { width: 100%; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+
+  .search { position: relative; margin-bottom: 12px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .card .name { font-size: 18px; font-weight: 700; margin: 0; }
+  .card .pron { color: var(--muted); font-style: italic; font-size: 14px; }
+  .card .addr { font-size: 14px; color: var(--muted); }
+  .card .meta { display: grid; gap: 6px; margin-top: 8px; font-size: 15px; }
+  .card .meta b { font-weight: 600; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; display: block; }
+  .card .ask { background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; }
+  .card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .card .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .pill {
+    display: inline-block; font-size: 12px; font-weight: 600;
+    padding: 3px 8px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); white-space: nowrap;
+  }
+  .pill.stale { background: var(--warn-soft); color: var(--warn); }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px 12px; }
+  .hint { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+
+  .fab {
+    position: fixed; right: 16px;
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
+    width: 58px; height: 58px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink);
+    border: none; font-size: 30px; line-height: 1; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    z-index: 6;
+  }
+
+  nav.tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 7;
+    display: flex; background: var(--card); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav.tabs button {
+    flex: 1; height: var(--tabbar-h); border: none; background: none; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  nav.tabs button .ico { font-size: 20px; line-height: 1; }
+  nav.tabs button[aria-selected=true] { color: var(--accent); }
+
+  dialog {
+    border: none; padding: 0; width: 100%; max-width: 640px;
+    max-height: 100dvh; margin: auto auto 0; border-radius: 18px 18px 0 0;
+    background: var(--bg); color: var(--text);
+  }
+  @media (min-width: 700px) { dialog { margin: auto; border-radius: 18px; } }
+  dialog::backdrop { background: rgba(0,0,0,0.45); }
+  .sheet { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .sheet h2 { margin: 0 0 4px; font-size: 20px; }
+  details.more { margin-top: 14px; }
+  details.more summary { cursor: pointer; color: var(--accent); font-weight: 600; padding: 6px 0; }
+
+  .quiz-card { text-align: center; padding: 24px 16px; }
+  .quiz-card .q { color: var(--muted); margin: 0; }
+  .quiz-card .house { font-size: 52px; font-weight: 800; line-height: 1.1; margin: 6px 0 0; letter-spacing: -0.02em; }
+  .quiz-card .street { font-size: 18px; color: var(--muted); margin-bottom: 16px; }
+  .quiz-answer { text-align: left; margin-top: 16px; }
+  .verdict { font-weight: 700; margin: 12px 0 0; }
+  .verdict.ok { color: var(--accent); }
+  .verdict.no { color: var(--warn); }
+  .score { color: var(--muted); font-size: 14px; text-align: center; margin-top: 8px; }
+
+  .banner { background: var(--warn-soft); color: var(--warn); padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; }
+  .section { margin-bottom: 22px; }
+  .section h2 { font-size: 17px; margin: 0 0 6px; }
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 90px);
+    background: var(--text); color: var(--bg);
+    padding: 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 600;
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="title">Neighbors</h1>
+  <div class="sub" id="subtitle"></div>
+</header>
+
+<main>
+  <div id="storage-warning" class="banner" hidden></div>
+
+  <!-- PEOPLE -->
+  <section class="view" id="view-people">
+    <div class="search">
+      <label class="sr-only" for="q">Search</label>
+      <input id="q" type="search" placeholder="Search name or house number" autocomplete="off" inputmode="search">
+    </div>
+    <div id="people-list"></div>
+  </section>
+
+  <!-- REFRESH -->
+  <section class="view" id="view-refresh" hidden>
+    <p class="hint">Longest since you last saw them, first. Tap “Seen today” after you run into someone.</p>
+    <div id="refresh-list"></div>
+  </section>
+
+  <!-- QUIZ -->
+  <section class="view" id="view-quiz" hidden>
+    <div id="quiz"></div>
+  </section>
+
+  <!-- DATA -->
+  <section class="view" id="view-data" hidden>
+    <div class="section">
+      <h2>Privacy</h2>
+      <p class="hint">Everything is stored only in this browser’s localStorage. This page has no network access at all — a Content-Security-Policy blocks every outgoing request. Clearing site data or uninstalling the browser deletes it, so export a backup now and then.</p>
+      <p class="hint" id="backup-status"></p>
+    </div>
+    <div class="section">
+      <h2>Export</h2>
+      <button class="btn primary block" id="export-btn">Download JSON backup</button>
+    </div>
+    <div class="section">
+      <h2>Import</h2>
+      <p class="hint">Merge keeps your current entries and adds or updates from the file. Replace deletes everything here first.</p>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+      <div class="row">
+        <button class="btn" id="import-merge">Import &amp; merge</button>
+        <button class="btn danger" id="import-replace">Import &amp; replace</button>
+      </div>
+    </div>
+    <div class="section">
+      <h2>Delete</h2>
+      <button class="btn danger block" id="wipe-btn">Delete all neighbors</button>
+    </div>
+  </section>
+</main>
+
+<button class="fab" id="fab" aria-label="Add neighbor">+</button>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-view="people" aria-selected="true"><span class="ico">☰</span>People</button>
+  <button role="tab" data-view="refresh" aria-selected="false"><span class="ico">↻</span>Refresh</button>
+  <button role="tab" data-view="quiz" aria-selected="false"><span class="ico">?</span>Quiz</button>
+  <button role="tab" data-view="data" aria-selected="false"><span class="ico">⇅</span>Data</button>
+</nav>
+
+<dialog id="editor">
+  <form class="sheet" id="edit-form" method="dialog" novalidate>
+    <h2 id="edit-title">Add neighbor</h2>
+    <input type="hidden" name="id">
+
+    <label for="f-name">Name <span class="req">*</span></label>
+    <input id="f-name" name="name" type="text" autocomplete="off" autocapitalize="words" required>
+
+    <div class="row">
+      <div style="flex:0 0 32%">
+        <label for="f-house">House # <span class="req">*</span></label>
+        <input id="f-house" name="house" type="text" autocomplete="off" inputmode="numeric">
+      </div>
+      <div>
+        <label for="f-street">Street <span class="req">*</span></label>
+        <input id="f-street" name="street" type="text" autocomplete="off" autocapitalize="words" list="street-options">
+        <datalist id="street-options"></datalist>
+      </div>
+    </div>
+
+    <details class="more" id="more">
+      <summary>More details</summary>
+      <label for="f-pron">Name pronunciation</label>
+      <input id="f-pron" name="pronunciation" type="text" autocomplete="off" placeholder="e.g. SHIV-awn">
+
+      <label for="f-met">How / when we met</label>
+      <textarea id="f-met" name="met" rows="2"></textarea>
+
+      <label for="f-detail">One shared detail</label>
+      <textarea id="f-detail" name="detail" rows="2" placeholder="e.g. Also from Ohio, has a beagle named Rex"></textarea>
+
+      <label for="f-follow">Follow-up question</label>
+      <textarea id="f-follow" name="followup" rows="2" placeholder="e.g. How did the kitchen remodel go?"></textarea>
+
+      <label for="f-seen">Last seen</label>
+      <input id="f-seen" name="lastSeen" type="date">
+    </details>
+
+    <p class="verdict no" id="form-error" hidden></p>
+
+    <div class="row" style="margin-top:18px">
+      <button type="button" class="btn" id="cancel-edit">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+    <button type="button" class="btn danger block" id="delete-btn" style="margin-top:10px" hidden>Delete this neighbor</button>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const STORE_KEY = 'neighbor-learner:v1';
+  const META_KEY = 'neighbor-learner:meta';
+  const FIELDS = ['name', 'pronunciation', 'street', 'house', 'met', 'detail', 'followup', 'lastSeen'];
+  const MAX_LEN = 2000;
+
+  // ---------- storage ----------
+  let neighbors = [];
+  let meta = { lastExport: null };
+  let storageOk = true;
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      neighbors = raw ? (JSON.parse(raw) || []).map(sanitize).filter(Boolean) : [];
+      const m = localStorage.getItem(META_KEY);
+      if (m) meta = Object.assign(meta, JSON.parse(m));
+    } catch (e) {
+      storageOk = false;
+      neighbors = [];
+    }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(neighbors));
+      localStorage.setItem(META_KEY, JSON.stringify(meta));
+      storageOk = true;
+    } catch (e) {
+      storageOk = false;
+    }
+    renderWarning();
+  }
+
+  // ---------- helpers ----------
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  function newId() {
+    if (window.crypto && crypto.randomUUID) { try { return crypto.randomUUID(); } catch (e) {} }
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  }
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function parseDay(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+  }
+  function daysSince(s) {
+    const d = parseDay(s);
+    if (!d) return null;
+    const t = parseDay(todayStr());
+    return Math.round((t - d) / 86400000);
+  }
+  function ago(s) {
+    const n = daysSince(s);
+    if (n === null) return 'never logged';
+    if (n < 0) return 'future date';
+    if (n === 0) return 'today';
+    if (n === 1) return 'yesterday';
+    if (n < 14) return `${n} days ago`;
+    if (n < 60) return `${Math.round(n / 7)} weeks ago`;
+    if (n < 730) return `${Math.round(n / 30.44)} months ago`;
+    return `${Math.round(n / 365.25)} years ago`;
+  }
+  function address(n) {
+    return [n.house, n.street].filter(Boolean).join(' ') || 'No address';
+  }
+  function sanitize(o) {
+    if (!o || typeof o !== 'object') return null;
+    const n = { id: typeof o.id === 'string' && o.id ? o.id.slice(0, 64) : newId() };
+    for (const f of FIELDS) n[f] = typeof o[f] === 'string' || typeof o[f] === 'number' ? String(o[f]).trim().slice(0, MAX_LEN) : '';
+    if (n.lastSeen && !parseDay(n.lastSeen)) n.lastSeen = '';
+    if (!n.name) return null;
+    n.created = typeof o.created === 'string' ? o.created : new Date().toISOString();
+    n.updated = typeof o.updated === 'string' ? o.updated : n.created;
+    const q = o.quiz && typeof o.quiz === 'object' ? o.quiz : {};
+    n.quiz = { right: Math.max(0, +q.right || 0), wrong: Math.max(0, +q.wrong || 0), last: typeof q.last === 'string' ? q.last : '' };
+    return n;
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  function houseCompare(a, b) {
+    const s = (a.street || '').localeCompare(b.street || '', undefined, { sensitivity: 'base' });
+    if (s) return s;
+    return (a.house || '').localeCompare(b.house || '', undefined, { numeric: true });
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  // ---------- rendering ----------
+  function cardHTML(n, opts = {}) {
+    const d = daysSince(n.lastSeen);
+    const stale = d === null || d > 30;
+    const rows = [];
+    if (n.detail) rows.push(`<div><b>Shared detail</b>${esc(n.detail)}</div>`);
+    if (n.followup) rows.push(`<div class="ask"><b>Ask next time</b>${esc(n.followup)}</div>`);
+    if (n.met && opts.full) rows.push(`<div><b>Met</b>${esc(n.met)}</div>`);
+    return `
+      <article class="card" data-id="${esc(n.id)}">
+        <div class="top">
+          <div>
+            <p class="name">${esc(n.name)}</p>
+            ${n.pronunciation ? `<div class="pron">“${esc(n.pronunciation)}”</div>` : ''}
+            <div class="addr">${esc(address(n))}</div>
+          </div>
+          <span class="pill ${stale ? 'stale' : ''}">${esc(ago(n.lastSeen))}</span>
+        </div>
+        ${rows.length ? `<div class="meta">${rows.join('')}</div>` : ''}
+        <div class="actions">
+          <button class="btn small primary" data-act="seen" ${d === 0 ? 'disabled' : ''}>${d === 0 ? 'Seen today ✓' : 'Seen today'}</button>
+          <button class="btn small" data-act="edit">Edit</button>
+        </div>
+      </article>`;
+  }
+
+  function renderPeople() {
+    const q = norm($('#q').value);
+    let list = neighbors.slice();
+    if (q) {
+      list = list.filter(n => {
+        const house = norm(n.house);
+        return norm(n.name).includes(q) || norm(n.pronunciation).includes(q) ||
+               (house && (house === q || house.startsWith(q))) ||
+               norm(address(n)).startsWith(q);
+      });
+      // exact house-number hits first, then by name
+      list.sort((a, b) => (norm(b.house) === q) - (norm(a.house) === q) || byName(a, b));
+    } else {
+      list.sort(byName);
+    }
+    const el = $('#people-list');
+    if (!neighbors.length) {
+      el.innerHTML = `<div class="empty">No neighbors yet.<br>Tap <b>+</b> to add one — name, house number and street is enough.</div>`;
+    } else if (!list.length) {
+      el.innerHTML = `<div class="empty">No match for “${esc($('#q').value)}”.</div>`;
+    } else {
+      el.innerHTML = list.map(n => cardHTML(n, { full: true })).join('');
+    }
+  }
+
+  function renderRefresh() {
+    // Never-logged first, then oldest last-seen; ties by name.
+    const list = neighbors.slice().sort((a, b) => {
+      const da = parseDay(a.lastSeen), db = parseDay(b.lastSeen);
+      if (!da && !db) return byName(a, b);
+      if (!da) return -1;
+      if (!db) return 1;
+      return (da - db) || byName(a, b);
+    });
+    $('#refresh-list').innerHTML = list.length
+      ? list.map(n => cardHTML(n)).join('')
+      : `<div class="empty">Nothing to refresh yet.</div>`;
+  }
+
+  function renderSubtitle() {
+    const n = neighbors.length;
+    const streets = new Set(neighbors.map(x => norm(x.street)).filter(Boolean)).size;
+    $('#subtitle').textContent = n
+      ? `${n} neighbor${n === 1 ? '' : 's'}${streets ? ` · ${streets} street${streets === 1 ? '' : 's'}` : ''}`
+      : 'Stored only on this device';
+  }
+
+  function renderWarning() {
+    const w = $('#storage-warning');
+    w.hidden = storageOk;
+    w.textContent = storageOk ? '' : 'This browser is blocking localStorage (private mode or site data disabled). Changes will be lost when you close the page — export before leaving.';
+  }
+
+  function renderData() {
+    const last = meta.lastExport ? new Date(meta.lastExport) : null;
+    $('#backup-status').textContent = last
+      ? `Last backup downloaded ${ago(todayStrFrom(last))}.`
+      : 'No backup downloaded yet from this browser.';
+  }
+  function todayStrFrom(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function renderStreetOptions() {
+    const seen = new Map();
+    neighbors.forEach(n => { if (n.street && !seen.has(norm(n.street))) seen.set(norm(n.street), n.street); });
+    $('#street-options').innerHTML = [...seen.values()].sort().map(s => `<option value="${esc(s)}">`).join('');
+  }
+
+  function renderAll() {
+    renderSubtitle();
+    renderPeople();
+    renderRefresh();
+    renderData();
+    renderStreetOptions();
+    if (currentView === 'quiz' && !quizState) renderQuiz();
+  }
+
+  // ---------- tabs ----------
+  let currentView = 'people';
+  function show(view) {
+    currentView = view;
+    document.querySelectorAll('.view').forEach(v => v.hidden = v.id !== 'view-' + view);
+    document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === view)));
+    $('#fab').hidden = view === 'quiz' || view === 'data';
+    if (view === 'quiz') { quizState = null; renderQuiz(); }
+    if (view === 'data') renderData();
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
+
+  // ---------- card actions ----------
+  function onCardClick(e) {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const id = btn.closest('.card').dataset.id;
+    const n = neighbors.find(x => x.id === id);
+    if (!n) return;
+    if (btn.dataset.act === 'seen') {
+      n.lastSeen = todayStr();
+      n.updated = new Date().toISOString();
+      save();
+      renderAll();
+      toast(`Marked ${n.name} as seen today`);
+    } else if (btn.dataset.act === 'edit') {
+      openEditor(n);
+    }
+  }
+  $('#people-list').addEventListener('click', onCardClick);
+  $('#refresh-list').addEventListener('click', onCardClick);
+  $('#q').addEventListener('input', renderPeople);
+
+  // ---------- editor ----------
+  const dlg = $('#editor');
+  const form = $('#edit-form');
+
+  function openEditor(n) {
+    form.reset();
+    $('#form-error').hidden = true;
+    const editing = !!n;
+    $('#edit-title').textContent = editing ? 'Edit neighbor' : 'Add neighbor';
+    $('#delete-btn').hidden = !editing;
+    form.elements.id.value = editing ? n.id : '';
+    for (const f of FIELDS) form.elements[f].value = editing ? n[f] : '';
+    if (!editing) form.elements.lastSeen.value = todayStr();
+    // Quick-add stays collapsed; edit opens details if any are filled in.
+    $('#more').open = editing && ['pronunciation', 'met', 'detail', 'followup'].some(f => n[f]);
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+    if (!editing) setTimeout(() => form.elements.name.focus(), 50);
+  }
+  function closeEditor() {
+    if (typeof dlg.close === 'function') dlg.close(); else dlg.removeAttribute('open');
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const data = {};
+    for (const f of FIELDS) data[f] = form.elements[f].value.trim().slice(0, MAX_LEN);
+    const missing = ['name', 'house', 'street'].filter(f => !data[f]);
+    if (missing.length) {
+      const err = $('#form-error');
+      err.textContent = 'Name, house number and street are required.';
+      err.hidden = false;
+      form.elements[missing[0]].focus();
+      return;
+    }
+    const id = form.elements.id.value;
+    const now = new Date().toISOString();
+    if (id) {
+      const n = neighbors.find(x => x.id === id);
+      if (n) Object.assign(n, data, { updated: now });
+      toast('Saved');
+    } else {
+      neighbors.push(sanitize(Object.assign({ id: newId(), created: now, updated: now }, data)));
+      toast(`Added ${data.name}`);
+    }
+    save();
+    closeEditor();
+    renderAll();
+  });
+  $('#cancel-edit').addEventListener('click', closeEditor);
+  $('#delete-btn').addEventListener('click', () => {
+    const id = form.elements.id.value;
+    const n = neighbors.find(x => x.id === id);
+    if (!n || !confirm(`Delete ${n.name}? This can’t be undone (unless you have a backup).`)) return;
+    neighbors = neighbors.filter(x => x.id !== id);
+    save();
+    closeEditor();
+    renderAll();
+    toast('Deleted');
+  });
+  $('#fab').addEventListener('click', () => openEditor(null));
+
+  // ---------- quiz ----------
+  // One question per address: "Who lives at 14 Oak St?" Answer = everyone at that address.
+  let quizState = null;
+  const session = { right: 0, total: 0, lastKey: null };
+
+  function quizGroups() {
+    const groups = new Map();
+    neighbors.filter(n => n.house).forEach(n => {
+      const key = norm(n.house) + '|' + norm(n.street);
+      if (!groups.has(key)) groups.set(key, { key, house: n.house, street: n.street, people: [] });
+      groups.get(key).people.push(n);
+    });
+    return [...groups.values()];
+  }
+
+  // Weighted pick: more misses and longer since last quizzed = more likely. Avoid immediate repeats.
+  function pickGroup(groups) {
+    let pool = groups.length > 1 ? groups.filter(g => g.key !== session.lastKey) : groups;
+    const now = Date.now();
+    const weights = pool.map(g => {
+      let w = 0;
+      g.people.forEach(p => {
+        const { right, wrong, last } = p.quiz;
+        const days = last ? (now - Date.parse(last)) / 86400000 : 30;
+        w += (1 + wrong * 2) / (1 + right * 0.5) * (1 + Math.min(days, 30) / 10);
+      });
+      return w / g.people.length;
+    });
+    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
+    return pool[pool.length - 1];
+  }
+
+  function nameMatches(typed, people) {
+    const t = norm(typed);
+    if (!t) return null;
+    return people.some(p => {
+      const full = norm(p.name);
+      const first = full.split(' ')[0];
+      return t === full || t === first || (t.length >= 3 && full.includes(t));
+    });
+  }
+
+  function renderQuiz() {
+    const el = $('#quiz');
+    const groups = quizGroups();
+    if (!groups.length) {
+      el.innerHTML = `<div class="empty">Add a neighbor with a house number to start the quiz.</div>`;
+      return;
+    }
+    if (!quizState) {
+      const g = pickGroup(groups);
+      session.lastKey = g.key;
+      quizState = { group: g, revealed: false, typed: '' };
+    }
+    const { group, revealed, typed } = quizState;
+    const multi = group.people.length > 1;
+    const match = nameMatches(typed, group.people);
+
+    let answer = '';
+    if (revealed) {
+      answer = `
+        <div class="quiz-answer">
+          ${typed ? `<p class="verdict ${match ? 'ok' : 'no'}">${match ? 'Your answer matches.' : `You typed “${esc(typed)}”.`}</p>` : ''}
+          ${group.people.map(p => `
+            <div class="card" style="margin-top:10px">
+              <p class="name">${esc(p.name)}</p>
+              ${p.pronunciation ? `<div class="pron">“${esc(p.pronunciation)}”</div>` : ''}
+              <div class="meta">
+                ${p.detail ? `<div><b>Shared detail</b>${esc(p.detail)}</div>` : ''}
+                ${p.followup ? `<div class="ask"><b>Ask next time</b>${esc(p.followup)}</div>` : ''}
+              </div>
+            </div>`).join('')}
+          <div class="row" style="margin-top:12px">
+            <button class="btn ${match === false ? 'primary' : ''}" data-q="miss">Missed it</button>
+            <button class="btn ${match !== false ? 'primary' : ''}" data-q="got">Got it</button>
+          </div>
+        </div>`;
+    }
+
+    el.innerHTML = `
+      <div class="card quiz-card">
+        <p class="q">Who lives at</p>
+        <div class="house">${esc(group.house)}</div>
+        <div class="street">${esc(group.street || '')}</div>
+        ${multi ? `<p class="hint">${group.people.length} people here — name any one.</p>` : ''}
+        ${revealed ? '' : `
+          <form id="quiz-form" novalidate>
+            <label class="sr-only" for="quiz-input">Name</label>
+            <input id="quiz-input" type="text" placeholder="Type the name (optional)" autocomplete="off" autocapitalize="words" spellcheck="false">
+            <button class="btn primary block" style="margin-top:10px" type="submit">Reveal</button>
+          </form>`}
+        ${answer}
+      </div>
+      <p class="score">${session.total ? `This session: ${session.right} / ${session.total}` : 'Answers are graded by you; misses come up more often.'}</p>`;
+
+    const f = $('#quiz-form');
+    if (f) {
+      f.addEventListener('submit', (e) => {
+        e.preventDefault();
+        quizState.typed = $('#quiz-input').value.trim();
+        quizState.revealed = true;
+        renderQuiz();
+      });
+    }
+  }
+
+  $('#quiz').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-q]');
+    if (!b || !quizState) return;
+    const got = b.dataset.q === 'got';
+    const now = new Date().toISOString();
+    quizState.group.people.forEach(p => {
+      if (got) p.quiz.right++; else p.quiz.wrong++;
+      p.quiz.last = now;
+    });
+    session.total++;
+    if (got) session.right++;
+    save();
+    quizState = null;
+    renderQuiz();
+  });
+
+  // ---------- export / import ----------
+  $('#export-btn').addEventListener('click', () => {
+    const payload = {
+      app: 'neighbor-learner',
+      version: 1,
+      exported: new Date().toISOString(),
+      neighbors
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `neighbors-${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    meta.lastExport = new Date().toISOString();
+    save();
+    renderData();
+    toast(`Exported ${neighbors.length} neighbor${neighbors.length === 1 ? '' : 's'}`);
+  });
+
+  let importMode = 'merge';
+  $('#import-merge').addEventListener('click', () => { importMode = 'merge'; $('#import-file').click(); });
+  $('#import-replace').addEventListener('click', () => { importMode = 'replace'; $('#import-file').click(); });
+  $('#import-file').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try { parsed = JSON.parse(reader.result); } catch (err) { alert('That file isn’t valid JSON.'); return; }
+      const arr = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.neighbors) ? parsed.neighbors : null);
+      if (!arr) { alert('No neighbor list found in that file.'); return; }
+      const incoming = arr.map(sanitize).filter(Boolean);
+      if (!incoming.length) { alert('The file contained no valid neighbors.'); return; }
+
+      if (importMode === 'replace') {
+        if (!confirm(`Replace all ${neighbors.length} current neighbors with ${incoming.length} from the file?`)) return;
+        neighbors = incoming;
+        save(); renderAll();
+        toast(`Imported ${incoming.length}`);
+        return;
+      }
+      let added = 0, updated = 0;
+      const index = new Map(neighbors.map((n, i) => [n.id, i]));
+      incoming.forEach(n => {
+        if (index.has(n.id)) { neighbors[index.get(n.id)] = n; updated++; }
+        else { index.set(n.id, neighbors.length); neighbors.push(n); added++; }
+      });
+      save(); renderAll();
+      toast(`Added ${added}, updated ${updated}`);
+    };
+    reader.onerror = () => alert('Could not read that file.');
+    reader.readAsText(file);
+  });
+
+  $('#wipe-btn').addEventListener('click', () => {
+    if (!neighbors.length) { toast('Nothing to delete'); return; }
+    if (!confirm(`Delete all ${neighbors.length} neighbors from this browser? Export first if you want a backup.`)) return;
+    neighbors = [];
+    save(); renderAll();
+    toast('All data deleted');
+  });
+
+  // ---------- boot ----------
+  load();
+  renderWarning();
+  renderAll();
+})();
+</script>
+</body>
+</html>
