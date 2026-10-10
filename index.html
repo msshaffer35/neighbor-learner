@@ -150,15 +150,8 @@
   details.more { margin-top: 14px; }
   details.more summary { cursor: pointer; color: var(--accent); font-weight: 600; padding: 6px 0; }
 
-  .quiz-card { text-align: center; padding: 24px 16px; }
-  .quiz-card .q { color: var(--muted); margin: 0; }
-  .quiz-card .house { font-size: 52px; font-weight: 800; line-height: 1.1; margin: 6px 0 0; letter-spacing: -0.02em; }
-  .quiz-card .street { font-size: 18px; color: var(--muted); margin-bottom: 16px; }
-  .quiz-answer { text-align: left; margin-top: 16px; }
   .verdict { font-weight: 700; margin: 12px 0 0; }
-  .verdict.ok { color: var(--accent); }
   .verdict.no { color: var(--warn); }
-  .score { color: var(--muted); font-size: 14px; text-align: center; margin-top: 8px; }
 
   .banner { background: var(--warn-soft); color: var(--warn); padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; }
   .section { margin-bottom: 22px; }
@@ -199,11 +192,6 @@
     <div id="refresh-list"></div>
   </section>
 
-  <!-- QUIZ -->
-  <section class="view" id="view-quiz" hidden>
-    <div id="quiz"></div>
-  </section>
-
   <!-- DATA -->
   <section class="view" id="view-data" hidden>
     <div class="section">
@@ -236,7 +224,6 @@
 <nav class="tabs" role="tablist">
   <button role="tab" data-view="people" aria-selected="true"><span class="ico">☰</span>People</button>
   <button role="tab" data-view="refresh" aria-selected="false"><span class="ico">↻</span>Refresh</button>
-  <button role="tab" data-view="quiz" aria-selected="false"><span class="ico">?</span>Quiz</button>
   <button role="tab" data-view="data" aria-selected="false"><span class="ico">⇅</span>Data</button>
 </nav>
 
@@ -371,8 +358,6 @@
     if (!n.name) return null;
     n.created = typeof o.created === 'string' ? o.created : new Date().toISOString();
     n.updated = typeof o.updated === 'string' ? o.updated : n.created;
-    const q = o.quiz && typeof o.quiz === 'object' ? o.quiz : {};
-    n.quiz = { right: Math.max(0, +q.right || 0), wrong: Math.max(0, +q.wrong || 0), last: typeof q.last === 'string' ? q.last : '' };
     return n;
   }
   const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
@@ -492,7 +477,6 @@
     renderRefresh();
     renderData();
     renderStreetOptions();
-    if (currentView === 'quiz' && !quizState) renderQuiz();
   }
 
   // ---------- tabs ----------
@@ -501,8 +485,7 @@
     currentView = view;
     document.querySelectorAll('.view').forEach(v => v.hidden = v.id !== 'view-' + view);
     document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === view)));
-    $('#fab').hidden = view === 'quiz' || view === 'data';
-    if (view === 'quiz') { quizState = null; renderQuiz(); }
+    $('#fab').hidden = view === 'data';
     if (view === 'data') renderData();
     window.scrollTo(0, 0);
   }
@@ -589,129 +572,6 @@
     toast('Deleted');
   });
   $('#fab').addEventListener('click', () => openEditor(null));
-
-  // ---------- quiz ----------
-  // One question per address: "Who lives at 14 Oak St?" Answer = everyone at that address.
-  let quizState = null;
-  const session = { right: 0, total: 0, lastKey: null };
-
-  function quizGroups() {
-    const groups = new Map();
-    neighbors.filter(n => n.house).forEach(n => {
-      const key = norm(n.house) + '|' + norm(n.street);
-      if (!groups.has(key)) groups.set(key, { key, house: n.house, street: n.street, people: [] });
-      groups.get(key).people.push(n);
-    });
-    return [...groups.values()];
-  }
-
-  // Weighted pick: more misses and longer since last quizzed = more likely. Avoid immediate repeats.
-  function pickGroup(groups) {
-    let pool = groups.length > 1 ? groups.filter(g => g.key !== session.lastKey) : groups;
-    const now = Date.now();
-    const weights = pool.map(g => {
-      let w = 0;
-      g.people.forEach(p => {
-        const { right, wrong, last } = p.quiz;
-        const days = last ? (now - Date.parse(last)) / 86400000 : 30;
-        w += (1 + wrong * 2) / (1 + right * 0.5) * (1 + Math.min(days, 30) / 10);
-      });
-      return w / g.people.length;
-    });
-    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) return pool[i]; }
-    return pool[pool.length - 1];
-  }
-
-  function nameMatches(typed, people) {
-    const t = norm(typed);
-    if (!t) return null;
-    return people.some(p => {
-      const full = norm(p.name);
-      const first = full.split(' ')[0];
-      return t === full || t === first || (t.length >= 3 && full.includes(t));
-    });
-  }
-
-  function renderQuiz() {
-    const el = $('#quiz');
-    const groups = quizGroups();
-    if (!groups.length) {
-      el.innerHTML = `<div class="empty">The quiz asks you to name who lives at a house number. Add a house number to at least one neighbor to start.</div>`;
-      return;
-    }
-    if (!quizState) {
-      const g = pickGroup(groups);
-      session.lastKey = g.key;
-      quizState = { group: g, revealed: false, typed: '' };
-    }
-    const { group, revealed, typed } = quizState;
-    const multi = group.people.length > 1;
-    const match = nameMatches(typed, group.people);
-
-    let answer = '';
-    if (revealed) {
-      answer = `
-        <div class="quiz-answer">
-          ${typed ? `<p class="verdict ${match ? 'ok' : 'no'}">${match ? 'Your answer matches.' : `You typed “${esc(typed)}”.`}</p>` : ''}
-          ${group.people.map(p => `
-            <div class="card" style="margin-top:10px">
-              <p class="name">${esc(p.name)}</p>
-              ${p.pronunciation ? `<div class="pron">“${esc(p.pronunciation)}”</div>` : ''}
-              <div class="meta">
-                ${p.detail ? `<div><b>Shared detail</b>${esc(p.detail)}</div>` : ''}
-                ${p.followup ? `<div class="ask"><b>Ask next time</b>${esc(p.followup)}</div>` : ''}
-              </div>
-            </div>`).join('')}
-          <div class="row" style="margin-top:12px">
-            <button class="btn ${match === false ? 'primary' : ''}" data-q="miss">Missed it</button>
-            <button class="btn ${match !== false ? 'primary' : ''}" data-q="got">Got it</button>
-          </div>
-        </div>`;
-    }
-
-    el.innerHTML = `
-      <div class="card quiz-card">
-        <p class="q">Who lives at</p>
-        <div class="house">${esc(group.house)}</div>
-        <div class="street">${esc(group.street || '')}</div>
-        ${multi ? `<p class="hint">${group.people.length} people here — name any one.</p>` : ''}
-        ${revealed ? '' : `
-          <form id="quiz-form" novalidate>
-            <label class="sr-only" for="quiz-input">Name</label>
-            <input id="quiz-input" type="text" placeholder="Type the name (optional)" autocomplete="off" autocapitalize="words" spellcheck="false">
-            <button class="btn primary block" style="margin-top:10px" type="submit">Reveal</button>
-          </form>`}
-        ${answer}
-      </div>
-      <p class="score">${session.total ? `This session: ${session.right} / ${session.total}` : 'Answers are graded by you; misses come up more often.'}</p>`;
-
-    const f = $('#quiz-form');
-    if (f) {
-      f.addEventListener('submit', (e) => {
-        e.preventDefault();
-        quizState.typed = $('#quiz-input').value.trim();
-        quizState.revealed = true;
-        renderQuiz();
-      });
-    }
-  }
-
-  $('#quiz').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-q]');
-    if (!b || !quizState) return;
-    const got = b.dataset.q === 'got';
-    const now = new Date().toISOString();
-    quizState.group.people.forEach(p => {
-      if (got) p.quiz.right++; else p.quiz.wrong++;
-      p.quiz.last = now;
-    });
-    session.total++;
-    if (got) session.right++;
-    save();
-    quizState = null;
-    renderQuiz();
-  });
 
   // ---------- export / import ----------
   $('#export-btn').addEventListener('click', () => {
