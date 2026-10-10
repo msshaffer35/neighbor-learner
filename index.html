@@ -41,6 +41,7 @@
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; }
   body {
     background: var(--bg);
@@ -105,6 +106,26 @@
   .card .ask { background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; }
   .card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .card .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .links { margin-top: 8px; font-size: 14px; color: var(--muted); }
+  .links .lk {
+    border: none; background: none; padding: 0; cursor: pointer;
+    color: var(--accent); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--accent-soft); color: var(--text);
+    border-radius: 999px; padding: 4px 4px 4px 12px; font-size: 14px;
+  }
+  .chip .rel { color: var(--muted); }
+  .chip button {
+    border: none; background: none; cursor: pointer; color: var(--muted);
+    width: 28px; height: 28px; border-radius: 50%; font-size: 16px; line-height: 1;
+  }
+  select {
+    width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--card); font-size: 16px;
+  }
   .pill {
     display: inline-block; font-size: 12px; font-weight: 600;
     padding: 3px 8px; border-radius: 999px;
@@ -247,6 +268,22 @@
       </div>
     </div>
 
+    <div id="links-section">
+      <label for="link-target">Linked with</label>
+      <div class="chips" id="link-chips"></div>
+      <div id="link-add">
+        <select id="link-target" style="margin-top:6px"><option value="">Link to another neighbor…</option></select>
+        <div class="row" style="margin-top:6px">
+          <input id="link-rel" type="text" list="rel-options" placeholder="Relationship (optional)" autocomplete="off" autocapitalize="words">
+          <button type="button" class="btn" id="link-add-btn" style="flex:0 0 auto">Link</button>
+        </div>
+      </div>
+      <datalist id="rel-options">
+        <option value="Partner"><option value="Spouse"><option value="Family"><option value="Parent / child">
+        <option value="Siblings"><option value="Roommates"><option value="Friends">
+      </datalist>
+    </div>
+
     <details class="more" id="more">
       <summary>More details</summary>
       <label for="f-pron">Name pronunciation</label>
@@ -271,6 +308,7 @@
       <button type="button" class="btn" id="cancel-edit">Cancel</button>
       <button type="submit" class="btn primary">Save</button>
     </div>
+    <button type="button" class="btn block" id="save-add-linked" style="margin-top:10px">Save + add someone with them</button>
     <button type="button" class="btn danger block" id="delete-btn" style="margin-top:10px" hidden>Delete this neighbor</button>
   </form>
 </dialog>
@@ -297,6 +335,7 @@
       neighbors = raw ? (JSON.parse(raw) || []).map(sanitize).filter(Boolean) : [];
       const m = localStorage.getItem(META_KEY);
       if (m) meta = Object.assign(meta, JSON.parse(m));
+      normalizeLinks();
     } catch (e) {
       storageOk = false;
       neighbors = [];
@@ -358,7 +397,23 @@
     if (!n.name) return null;
     n.created = typeof o.created === 'string' ? o.created : new Date().toISOString();
     n.updated = typeof o.updated === 'string' ? o.updated : n.created;
+    n.links = Array.isArray(o.links)
+      ? o.links.filter(l => l && typeof l.id === 'string' && l.id)
+          .map(l => ({ id: l.id.slice(0, 64), rel: typeof l.rel === 'string' ? l.rel.trim().slice(0, 60) : '' }))
+      : [];
     return n;
+  }
+  // Links are two-way: drop dangling/self/duplicate links, then mirror any one-sided link.
+  function normalizeLinks() {
+    const byId = new Map(neighbors.map(n => [n.id, n]));
+    neighbors.forEach(n => {
+      const seen = new Set();
+      n.links = (n.links || []).filter(l => l.id !== n.id && byId.has(l.id) && !seen.has(l.id) && seen.add(l.id));
+    });
+    neighbors.forEach(n => n.links.forEach(l => {
+      const other = byId.get(l.id);
+      if (!other.links.some(x => x.id === n.id)) other.links.push({ id: n.id, rel: l.rel });
+    }));
   }
   const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   function houseCompare(a, b) {
@@ -395,11 +450,21 @@
           <span class="pill ${stale ? 'stale' : ''}">${esc(ago(n.lastSeen))}</span>
         </div>
         ${rows.length ? `<div class="meta">${rows.join('')}</div>` : ''}
+        ${linksHTML(n)}
         <div class="actions">
           <button class="btn small primary" data-act="seen" ${d === 0 ? 'disabled' : ''}>${d === 0 ? 'Seen today ✓' : 'Seen today'}</button>
           <button class="btn small" data-act="edit">Edit</button>
         </div>
       </article>`;
+  }
+
+  function linksHTML(n) {
+    const parts = (n.links || []).map(l => {
+      const o = neighbors.find(x => x.id === l.id);
+      if (!o) return '';
+      return `<button class="lk" data-act="goto" data-target="${esc(o.id)}">${esc(o.name)}</button>${l.rel ? ` (${esc(l.rel)})` : ''}`;
+    }).filter(Boolean);
+    return parts.length ? `<div class="links">With ${parts.join(', ')}</div>` : '';
   }
 
   function renderPeople() {
@@ -506,6 +571,12 @@
       toast(`Marked ${n.name} as seen today`);
     } else if (btn.dataset.act === 'edit') {
       openEditor(n);
+    } else if (btn.dataset.act === 'goto') {
+      const t = neighbors.find(x => x.id === btn.dataset.target);
+      if (!t) return;
+      $('#q').value = t.name;
+      show('people');
+      renderPeople();
     }
   }
   $('#people-list').addEventListener('click', onCardClick);
@@ -516,7 +587,53 @@
   const dlg = $('#editor');
   const form = $('#edit-form');
 
-  function openEditor(n) {
+  // Links being edited in the open form: Map of neighbor id -> relationship label.
+  let draftLinks = new Map();
+
+  function renderLinkEditor() {
+    const selfId = form.elements.id.value;
+    const chips = [...draftLinks].map(([id, rel]) => {
+      const o = neighbors.find(x => x.id === id);
+      if (!o) return '';
+      return `<span class="chip">${esc(o.name)}${rel ? ` <span class="rel">· ${esc(rel)}</span>` : ''}<button type="button" data-unlink="${esc(id)}" aria-label="Unlink ${esc(o.name)}">×</button></span>`;
+    }).join('');
+    $('#link-chips').innerHTML = chips;
+    const options = neighbors.filter(o => o.id !== selfId && !draftLinks.has(o.id)).sort(byName);
+    $('#link-target').innerHTML = `<option value="">Link to another neighbor…</option>` +
+      options.map(o => `<option value="${esc(o.id)}">${esc(o.name)}${address(o) ? ` — ${esc(address(o))}` : ''}</option>`).join('');
+    $('#link-add').hidden = !options.length;
+    $('#links-section').hidden = !options.length && !draftLinks.size;
+  }
+  $('#link-add-btn').addEventListener('click', () => {
+    const id = $('#link-target').value;
+    if (!id) { $('#link-target').focus(); return; }
+    draftLinks.set(id, $('#link-rel').value.trim().slice(0, 60));
+    $('#link-rel').value = '';
+    renderLinkEditor();
+  });
+  $('#link-chips').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-unlink]');
+    if (!b) return;
+    draftLinks.delete(b.dataset.unlink);
+    renderLinkEditor();
+  });
+
+  // Make `self.links` match draftLinks, and mirror every change on the other side.
+  function applyLinks(self) {
+    self.links = [...draftLinks].map(([id, rel]) => ({ id, rel }));
+    neighbors.forEach(o => {
+      if (o.id === self.id) return;
+      const had = o.links.findIndex(l => l.id === self.id);
+      if (draftLinks.has(o.id)) {
+        const rel = draftLinks.get(o.id);
+        if (had >= 0) o.links[had].rel = rel; else o.links.push({ id: self.id, rel });
+      } else if (had >= 0) {
+        o.links.splice(had, 1);
+      }
+    });
+  }
+
+  function openEditor(n, prefill) {
     form.reset();
     $('#form-error').hidden = true;
     const editing = !!n;
@@ -525,6 +642,13 @@
     form.elements.id.value = editing ? n.id : '';
     for (const f of FIELDS) form.elements[f].value = editing ? n[f] : '';
     if (!editing) form.elements.lastSeen.value = todayStr();
+    draftLinks = new Map(editing ? n.links.map(l => [l.id, l.rel]) : []);
+    if (prefill) {
+      form.elements.house.value = prefill.house || '';
+      form.elements.street.value = prefill.street || '';
+      draftLinks.set(prefill.linkTo, '');
+    }
+    renderLinkEditor();
     // Quick-add stays collapsed; edit opens details if any are filled in.
     $('#more').open = editing && ['pronunciation', 'met', 'detail', 'followup'].some(f => n[f]);
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
@@ -534,8 +658,10 @@
     if (typeof dlg.close === 'function') dlg.close(); else dlg.removeAttribute('open');
   }
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
+  form.addEventListener('submit', (e) => { e.preventDefault(); saveForm(false); });
+  $('#save-add-linked').addEventListener('click', () => saveForm(true));
+
+  function saveForm(addLinked) {
     const data = {};
     for (const f of FIELDS) data[f] = form.elements[f].value.trim().slice(0, MAX_LEN);
     const missing = ['name'].filter(f => !data[f]);
@@ -548,24 +674,32 @@
     }
     const id = form.elements.id.value;
     const now = new Date().toISOString();
+    let self;
     if (id) {
-      const n = neighbors.find(x => x.id === id);
-      if (n) Object.assign(n, data, { updated: now });
+      self = neighbors.find(x => x.id === id);
+      if (self) Object.assign(self, data, { updated: now });
       toast('Saved');
     } else {
-      neighbors.push(sanitize(Object.assign({ id: newId(), created: now, updated: now }, data)));
+      self = sanitize(Object.assign({ id: newId(), created: now, updated: now }, data));
+      neighbors.push(self);
       toast(`Added ${data.name}`);
     }
+    if (self) applyLinks(self);
     save();
     closeEditor();
     renderAll();
-  });
+    if (addLinked && self) {
+      openEditor(null, { linkTo: self.id, house: self.house, street: self.street });
+      toast(`Now add who's with ${self.name}`);
+    }
+  }
   $('#cancel-edit').addEventListener('click', closeEditor);
   $('#delete-btn').addEventListener('click', () => {
     const id = form.elements.id.value;
     const n = neighbors.find(x => x.id === id);
     if (!n || !confirm(`Delete ${n.name}? This can’t be undone (unless you have a backup).`)) return;
     neighbors = neighbors.filter(x => x.id !== id);
+    neighbors.forEach(o => { o.links = o.links.filter(l => l.id !== id); });
     save();
     closeEditor();
     renderAll();
@@ -615,7 +749,7 @@
       if (importMode === 'replace') {
         if (!confirm(`Replace all ${neighbors.length} current neighbors with ${incoming.length} from the file?`)) return;
         neighbors = incoming;
-        save(); renderAll();
+        normalizeLinks(); save(); renderAll();
         toast(`Imported ${incoming.length}`);
         return;
       }
@@ -625,7 +759,7 @@
         if (index.has(n.id)) { neighbors[index.get(n.id)] = n; updated++; }
         else { index.set(n.id, neighbors.length); neighbors.push(n); added++; }
       });
-      save(); renderAll();
+      normalizeLinks(); save(); renderAll();
       toast(`Added ${added}, updated ${updated}`);
     };
     reader.onerror = () => alert('Could not read that file.');
