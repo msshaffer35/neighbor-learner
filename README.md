@@ -2,7 +2,7 @@
 
 Single-file, mobile-first web app for remembering neighbors. Open `index.html` in a browser.
 
-- Quick-add (name, house number, street) with optional details: pronunciation, how/when met, shared detail, follow-up question, last-seen date
+- Quick-add (only name is required) with optional house number, street, pronunciation, how/when met, shared detail, follow-up question, last-seen date
 - Search by name or house number
 - Refresh list: oldest last-seen first, one-tap "Seen today"
 - Quiz: shows a house number, you recall the name; misses come up more often

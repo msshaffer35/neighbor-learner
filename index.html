@@ -250,12 +250,12 @@
 
     <div class="row">
       <div style="flex:0 0 32%">
-        <label for="f-house">House # <span class="req">*</span></label>
-        <input id="f-house" name="house" type="text" autocomplete="off" inputmode="numeric">
+        <label for="f-house">House #</label>
+        <input id="f-house" name="house" type="text" autocomplete="off" inputmode="numeric" placeholder="If known">
       </div>
       <div>
-        <label for="f-street">Street <span class="req">*</span></label>
-        <input id="f-street" name="street" type="text" autocomplete="off" autocapitalize="words" list="street-options">
+        <label for="f-street">Street</label>
+        <input id="f-street" name="street" type="text" autocomplete="off" autocapitalize="words" list="street-options" placeholder="If known">
         <datalist id="street-options"></datalist>
       </div>
     </div>
@@ -361,7 +361,7 @@
     return `${Math.round(n / 365.25)} years ago`;
   }
   function address(n) {
-    return [n.house, n.street].filter(Boolean).join(' ') || 'No address';
+    return [n.house, n.street].filter(Boolean).join(' ');
   }
   function sanitize(o) {
     if (!o || typeof o !== 'object') return null;
@@ -405,7 +405,7 @@
           <div>
             <p class="name">${esc(n.name)}</p>
             ${n.pronunciation ? `<div class="pron">“${esc(n.pronunciation)}”</div>` : ''}
-            <div class="addr">${esc(address(n))}</div>
+            ${address(n) ? `<div class="addr">${esc(address(n))}</div>` : ''}
           </div>
           <span class="pill ${stale ? 'stale' : ''}">${esc(ago(n.lastSeen))}</span>
         </div>
@@ -434,7 +434,7 @@
     }
     const el = $('#people-list');
     if (!neighbors.length) {
-      el.innerHTML = `<div class="empty">No neighbors yet.<br>Tap <b>+</b> to add one — name, house number and street is enough.</div>`;
+      el.innerHTML = `<div class="empty">No neighbors yet.<br>Tap <b>+</b> to add one — just a name is enough.</div>`;
     } else if (!list.length) {
       el.innerHTML = `<div class="empty">No match for “${esc($('#q').value)}”.</div>`;
     } else {
@@ -555,10 +555,10 @@
     e.preventDefault();
     const data = {};
     for (const f of FIELDS) data[f] = form.elements[f].value.trim().slice(0, MAX_LEN);
-    const missing = ['name', 'house', 'street'].filter(f => !data[f]);
+    const missing = ['name'].filter(f => !data[f]);
     if (missing.length) {
       const err = $('#form-error');
-      err.textContent = 'Name, house number and street are required.';
+      err.textContent = 'Name is required.';
       err.hidden = false;
       form.elements[missing[0]].focus();
       return;
@@ -637,7 +637,7 @@
     const el = $('#quiz');
     const groups = quizGroups();
     if (!groups.length) {
-      el.innerHTML = `<div class="empty">Add a neighbor with a house number to start the quiz.</div>`;
+      el.innerHTML = `<div class="empty">The quiz asks you to name who lives at a house number. Add a house number to at least one neighbor to start.</div>`;
       return;
     }
     if (!quizState) {
